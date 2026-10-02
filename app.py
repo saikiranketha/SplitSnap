@@ -15,7 +15,7 @@ from prompts import EXTRACT_PROMPT
 
 st.set_page_config(page_title="SplitSnap", page_icon="🧾")
 
-MODEL_NAME = st.secrets.get("GEMINI_MODEL", "gemini-3.7-flash")
+MODEL_NAME = st.secrets.get("GEMINI_MODEL", "gemini-3.8-flash")
 MAX_READS, MAX_SENDS, MAX_RECIPIENTS = 10, 3, 5
 CATEGORIES = ["Food", "Groceries", "Transport", "Shopping", "Bills", "Other"]
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
