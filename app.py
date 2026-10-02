@@ -15,7 +15,7 @@ from prompts import EXTRACT_PROMPT
 
 st.set_page_config(page_title="SplitSnap", page_icon="🧾")
 
-MODEL_NAME = st.secrets.get("GEMINI_MODEL", "gemini-3.5-flash")
+MODEL_NAME = st.secrets.get("GEMINI_MODEL", "gemini-3.7-flash")
 MAX_READS, MAX_SENDS, MAX_RECIPIENTS = 10, 3, 5
 CATEGORIES = ["Food", "Groceries", "Transport", "Shopping", "Bills", "Other"]
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -81,11 +81,27 @@ def allocate(total, weights):
         base[i] += 1
     return base
 
+def format_money(currency, amount):
+    if currency.upper() in {"INR", "₹"}:
+        return f"₹{amount:.2f}"
+    return f"{currency}{amount:.2f}"
+
 
 def build_summary(merchant, cur, total_c, people, cents, mode):
-    head = f"🧾 {merchant} - total {cur}{total_c / 100:.2f} (split {mode.lower()})"
-    rows = [f"{p}: {cur}{c / 100:.2f}" for p, c in zip(people, cents)]
-    return head + "\n" + "\n".join(rows)
+    """Create a simple, friendly bill-split message."""
+    total = total_c / 100
+    lines = [
+        f"🧾 Bill Split — {merchant}",
+        "",
+        f"Total: {format_money(cur, total)}",
+        f"Split: {mode}",
+        "",
+    ]
+    for person, amount in zip(people, cents):
+        lines.append(
+            f"{person}: {format_money(cur, amount / 100)}"
+        )
+    return "\n".join(lines)
 
 
 def safe_cell(value):
@@ -217,12 +233,16 @@ else:
         shares = [s + a for s, a in zip(shares, allocate(ic, weights))]
     cents = [s + e for s, e in zip(shares, allocate(extra_c, shares))]
 
-st.subheader("3. Result")
-for p, c in zip(people, cents):
-    st.metric(p, f"{cur}{c / 100:.2f}")
-
+st.subheader("3. Your share")
+for person, amount in zip(people, cents):
+    st.metric(
+        person,
+        format_money(cur, amount / 100),
+    )
 summary = build_summary(merchant, cur, total_c, people, cents, mode)
-st.code(summary, language=None)  # built-in copy button
+st.caption("Here's the message you can send:")
+st.code(summary, language=None)
+
 
 if not email_ready:
     st.info("Email isn't configured, so copy the summary above. Add GMAIL_ADDRESS and GMAIL_APP_PASSWORD to enable sending.")
@@ -250,13 +270,23 @@ else:
 st.subheader("4. Save to history")
 default_cat = receipt.category if receipt.category in CATEGORIES else "Other"
 category = st.selectbox("Category", CATEGORIES, index=CATEGORIES.index(default_cat), key=f"cat_{n}")
-when = st.text_input("Date (YYYY-MM-DD)", receipt.date or date.today().isoformat(), key=f"d_{n}")
+# If it is missing or invalid, use today's date.
+try:
+    receipt_date = date.fromisoformat(receipt.date) if receipt.date else date.today()
+except (ValueError, TypeError):
+    receipt_date = date.today()
+when = st.date_input(
+    "Receipt date",
+    value=receipt_date,
+    format="DD/MM/YYYY",
+    key=f"d_{n}",
+)
 if n in st.session_state.saved_reads:
     st.success("Saved to history ✅")
 elif st.button("💾 Save to history"):
     st.session_state.history.append(
         {
-            "date": safe_cell(when.strip()),
+            "date": when.isoformat(),
             "merchant": safe_cell(merchant.strip()),
             "category": category,
             "currency": safe_cell(cur.strip()),
