@@ -66,7 +66,7 @@ def read_receipt(img_bytes):
         )
         return resp.parsed, None
     except Exception as error:
-        return None, str(error)
+        return None, error
 
 
 def allocate(total, weights):
@@ -168,9 +168,15 @@ if photo and st.button("Read receipt", type="primary", disabled=not gemini_ready
         except Exception as error:
             receipt, err = None, f"Image preparation failed: {error}"
         if err:
-            st.error("Receipt processing failed. Check the technical details for the cause.")
+            if getattr(err, "code", None) == 503:
+                st.error(
+                    "Gemini is temporarily overloaded. Wait a moment and try again. "
+                    "If this keeps happening, set GEMINI_MODEL to another supported model."
+                )
+            else:
+                st.error("Receipt processing failed. Check the technical details for the cause.")
             with st.expander("Technical details"):
-                st.code(err)
+                st.code(str(err))
         elif receipt is None:
             st.error("Gemini returned no receipt data. Try again or check that the configured model is available.")
         elif not receipt.is_receipt or not receipt.items:
